@@ -47,6 +47,25 @@ export class NgPackage {
     public readonly secondaries: NgEntryPoint[] = []
   ) {}
 
+  /** Absolute path of the package's source directory. */
+  public get src(): DirectoryPath {
+    return this.absolutePathFromPrimary('src');
+  }
+
+  /** Absolute path of the package's destination directory. */
+  public get dest(): DirectoryPath {
+    return this.absolutePathFromPrimary('dest');
+  }
+
+  /** Absolute path of the package's working directory (used for intermediate file storage). */
+  public get workingDirectory(): DirectoryPath {
+    return this.absolutePathFromPrimary('workingDirectory');
+  }
+
+  private absolutePathFromPrimary(key: string) {
+    return path.resolve(this.basePath, this.primary.$get(key));
+  }
+
 }
 
 /**
@@ -68,20 +87,68 @@ export class NgEntryPoint {
   constructor(
     public readonly packageJson: any,
     public readonly ngPackageJson: NgPackageConfig,
-    private $schema: SchemaClass<NgPackageConfig>
+    private readonly $schema: SchemaClass<NgPackageConfig>,
+    private basePath: string,
+    private readonly secondaryData?: { [key: string]: any }
   ) {}
 
-  // this.$schema.$$get('lib.flatModuleFile')
+  /** Absolute file path of the entry point's source code entry file. */
+  public get entryFilePath(): SourceFilePath {
+    return path.resolve(this.basePath, this.entryFile);
+  }
 
-  entryFile: SourceFilePath;
+  /** Absolute directory path of the entry point's 'package.json'. */
+  public get destinationPath(): DirectoryPath {
+    if (this.secondaryData) {
+      return this.secondaryData.destinationPath;
+    } else {
+      return path.resolve(this.basePath, this.$get('dest'));
+    }
+  }
+
+  public $get(key: string): any {
+    return this.$schema.$$get(key);
+  }
+
+  public get entryFile(): SourceFilePath {
+    return this.$get('lib.entryFile');
+  }
+
+  public get externals(): { [key: string]: string } {
+    return this.$get('lib.externals');
+  }
+
+  public get jsxConfig(): string {
+    return this.$get('lib.jsx');
+  }
+
+  public get flatModuleFile(): string {
+    return this.$get('lib.flatModuleFile') || this.moduleId.replace('@', '').split('/').join('-');
+  }
+
+  /**
+   * The module ID is an "identifier of a module used in the import statements, e.g.
+   * '@angular/core'. The ID often maps directly to a path on the filesystem, but this
+   * is not always the case due to various module resolution strategies."
+   */
+  public get moduleId(): string {
+    if (this.secondaryData) {
+      return this.secondaryData.moduleId;
+    } else {
+      return this.packageJson['name'];
+    }
+  }
+
 }
 
 
 /**
- * An entrypoint of an Angular library.
+ * The (source code) entry file of an entry point.
  *
- * Typically, an entrypoint refers to the `public_api.ts` source file, referencing all other
+ * Typically, an entry point refers to the `public_api.ts` source file, referencing all other
  * source files that are considered in the compilation (transformation) process, as well as
  * describing the API surface of a library.
  */
 export type SourceFilePath = string;
+
+export type DirectoryPath = string;
